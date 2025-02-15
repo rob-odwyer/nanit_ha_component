@@ -12,7 +12,7 @@ from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_CODE, CONF_EMAIL, CONF_PASSWORD, CONF_TOKEN
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import DOMAIN
+from .const import DOMAIN, ACCESS_TOKEN, REFRESH_TOKEN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,9 +35,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the initial step."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -57,17 +55,13 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_PASSWORD: user_input[CONF_PASSWORD],
                     CONF_TOKEN: mfa_token,
                 }
-                return self.async_show_form(
-                    step_id="mfa", data_schema=STEP_MFA_DATA_SCHEMA
-                )
+                return self.async_show_form(step_id="mfa", data_schema=STEP_MFA_DATA_SCHEMA)
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_LOGIN_DATA_SCHEMA, errors=errors
         )
 
-    async def async_step_mfa(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_mfa(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the MFA code step."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -89,11 +83,17 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title=self.data[CONF_EMAIL],
                     data={
-                        "access_token": access_token,
-                        "refresh_token": refresh_token,
+                        ACCESS_TOKEN: access_token,
+                        REFRESH_TOKEN: refresh_token,
                     },
                 )
 
         return self.async_show_form(
             step_id="mfa", data_schema=STEP_LOGIN_DATA_SCHEMA, errors=errors
         )
+
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
+        """Handle authentication failure on setup."""
+        # FIXME: This isn't the correct way to handle reauthentication.
+        # error: Detected reauth config flow creating a new entry, when it is expected to update an existing entry and abort. This will stop working in 2025.11, please report it to the author of the 'nanit' custom integration
+        return self.async_show_form(step_id="user", data_schema=STEP_LOGIN_DATA_SCHEMA)
