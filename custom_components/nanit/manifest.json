@@ -7,6 +7,7 @@
     "git+https://github.com/rob-odwyer/pynanit@main#egg=pynanit"
   ],
   "documentation": "https://github.com/rob-odwyer/pynanit",
+  "issue_tracker": "https://github.com/rob-odwyer/pynanit",
   "iot_class": "cloud_polling",
   "version": "0.0.1"
 }
