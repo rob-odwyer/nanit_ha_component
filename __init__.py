@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+import time
 
 import async_timeout
 import pynanit
@@ -21,7 +22,7 @@ from homeassistant.helpers.update_coordinator import (
 
 from .const import ACCESS_TOKEN, CLIENT, COORDINATOR, DOMAIN, REFRESH_TOKEN
 
-PLATFORMS: list[Platform] = [Platform.CAMERA]
+PLATFORMS: list[Platform] = [Platform.CAMERA, Platform.SENSOR]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class NanitCoordinator(DataUpdateCoordinator):
             # Name of the data. For logging purposes.
             name="Nanit Camera",
             # Polling interval. Will only be polled if there are subscribers.
-            update_interval=timedelta(seconds=30),
+            update_interval=timedelta(seconds=60),
             # Set always_update to `False` if the data returned from the
             # api can be compared via `__eq__` to avoid duplicate updates
             # being dispatched to listeners
@@ -79,6 +80,7 @@ class NanitCoordinator(DataUpdateCoordinator):
         )
         self._client = client
         self.babies = []
+        self.latest_events = {}
 
     async def _async_setup(self):
         """Set up your coordinator, or to load data, that only needs to be loaded once.
@@ -100,9 +102,19 @@ class NanitCoordinator(DataUpdateCoordinator):
                 _LOGGER.info(
                     "Refreshing data from Nanit API",
                 )
+
+                # FIXME: remove
+                _LOGGER.info("Nanit access token: %s", self._client._access_token)
+
                 async with async_timeout.timeout(10):
+
                     self.babies = await self._client.get_babies()
-                    return
+
+                    for baby in self.babies["babies"]:
+                        baby_uid = baby["uid"]
+                        self.latest_events[baby_uid] = await self._client.get_latest_event(baby_uid)
+
+                # TODO: poll /focus/cameras/{camera_uid}/connection_status for camera connection status
 
             # FIXME:
             # except pynanit.NanitUnauthorizedError:
@@ -127,6 +139,6 @@ class NanitCoordinator(DataUpdateCoordinator):
 
     def get_stream_url(self, baby_uid: str) -> str:
         _LOGGER.info(
-            f"Getting stream URL", extra={"baby_uid": baby_uid, "token": self._client._access_token}
+            f"Getting stream URL for baby_uid={baby_uid}",
         )
         return self._client.get_stream_url(baby_uid)
