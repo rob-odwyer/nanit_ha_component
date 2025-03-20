@@ -35,6 +35,8 @@ class NanitCamera(CoordinatorEntity[NanitCoordinator], Camera):
 
     _attr_supported_features = CameraEntityFeature.STREAM
     use_stream_for_stills = True
+    _attr_brand = "Nanit"
+    _attr_is_streaming = True
 
     def __init__(self, coordinator: NanitCoordinator, baby_info: dict) -> None:
         """Initialize Nanit camera."""
@@ -55,6 +57,7 @@ class NanitCamera(CoordinatorEntity[NanitCoordinator], Camera):
             model=f"Nanit Camera ({camera_info['hardware']}, {camera_info['mode']})",
             name=self._attr_name,
         )
+        self._attr_model = camera_info.get("hardware", "")
 
     @callback
     def _handle_coordinator_update(self) -> None:

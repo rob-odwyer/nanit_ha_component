@@ -126,4 +126,7 @@ class NanitCoordinator(DataUpdateCoordinator):
             raise ConfigEntryAuthFailed from err
 
     def get_stream_url(self, baby_uid: str) -> str:
+        _LOGGER.info(
+            f"Getting stream URL", extra={"baby_uid": baby_uid, "token": self._client._access_token}
+        )
         return self._client.get_stream_url(baby_uid)
