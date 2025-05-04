@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 import time
+from dataclasses import dataclass
 
 import async_timeout
 import pynanit
@@ -14,6 +15,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -61,7 +63,36 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-class NanitCoordinator(DataUpdateCoordinator):
+@dataclass
+class Camera:
+    camera_uid: str
+    hardware: str
+    mode: str
+
+
+@dataclass
+class LatestEvent:
+    key: str
+    time: float
+
+
+@dataclass
+class BabyMeta:
+    baby_uid: str
+    camera: Camera
+    name: str
+    latest_event: LatestEvent
+    device_info: DeviceInfo
+
+
+@dataclass
+class NanitData:
+    """Container for cached data from the Nanit API."""
+
+    babies: dict[str, BabyMeta]
+
+
+class NanitCoordinator(DataUpdateCoordinator[NanitData]):
     """Data update coordinator for refreshing data from the Nanit REST API."""
 
     def __init__(self, hass: HomeAssistant, client: pynanit.NanitClient) -> None:
@@ -79,8 +110,6 @@ class NanitCoordinator(DataUpdateCoordinator):
             always_update=True,
         )
         self._client = client
-        self.babies = []
-        self.latest_events = {}
 
     async def _async_setup(self):
         """Set up your coordinator, or to load data, that only needs to be loaded once.
@@ -91,7 +120,7 @@ class NanitCoordinator(DataUpdateCoordinator):
         _LOGGER.info("Setting up Nanit initial data")
         await self._async_update_data()
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> NanitData:
         """Fetch data from API endpoint.
 
         This is the place to pre-process the data to lookup tables
@@ -99,23 +128,7 @@ class NanitCoordinator(DataUpdateCoordinator):
         """
         try:
             try:
-                _LOGGER.info(
-                    "Refreshing data from Nanit API",
-                )
-
-                # FIXME: remove
-                _LOGGER.info("Nanit access token: %s", self._client._access_token)
-
-                async with async_timeout.timeout(10):
-
-                    self.babies = await self._client.get_babies()
-
-                    for baby in self.babies["babies"]:
-                        baby_uid = baby["uid"]
-                        self.latest_events[baby_uid] = await self._client.get_latest_event(baby_uid)
-
-                # TODO: poll /focus/cameras/{camera_uid}/connection_status for camera connection status
-
+                return await self._update_babies()
             # FIXME:
             # except pynanit.NanitUnauthorizedError:
             except pynanit.NanitAPIError:
@@ -126,9 +139,9 @@ class NanitCoordinator(DataUpdateCoordinator):
                 # This should mean that the credentials never expire, as long as HA is running this regularly
                 await self._client.refresh_session()
                 _LOGGER.info(
-                    "Successfully refreshed Nanit API token, retrying request",
+                    "Successfully refreshed Nanit API token, retrying update",
                 )
-                self.babies = await self._client.get_babies()
+                return await self._update_babies()
 
         # Note: asyncio.TimeoutError and aiohttp.ClientError are already
         # handled by the data update coordinator.
@@ -136,6 +149,56 @@ class NanitCoordinator(DataUpdateCoordinator):
             # Raising ConfigEntryAuthFailed will cancel future updates
             # and start a config flow with SOURCE_REAUTH (async_step_reauth)
             raise ConfigEntryAuthFailed from err
+
+    async def _update_babies(self) -> NanitData:
+        _LOGGER.info(
+            "Refreshing data from Nanit API",
+        )
+
+        # FIXME: remove
+        _LOGGER.info("Nanit access token: %s", self._client._access_token)
+
+        async with async_timeout.timeout(10):
+
+            babies = await self._client.get_babies()
+
+            baby_metas = {}
+            for baby in babies["babies"]:
+                baby_uid = baby["uid"]
+
+                latest_event = await self._client.get_latest_event(baby_uid)
+
+                camera_info = baby['camera']
+                camera = Camera(
+                    camera_info["uid"],
+                    camera_info.get("hardware", 'Unknown hardware'),
+                    camera_info.get("mode", 'Unknown mode'),
+                )
+
+                device_info = DeviceInfo(
+                    identifiers={(DOMAIN, baby_uid)},
+                    manufacturer="Nanit",
+                    name=baby.get("name", baby_uid),
+                    model=camera.hardware,
+                    serial_number=camera.camera_uid,
+                    hw_version=camera_info.get('hardware'),
+                    sw_version=camera_info.get('version'),
+                )
+
+                baby_meta = BabyMeta(
+                    baby_uid=baby_uid,
+                    camera=camera,
+                    name=baby.get("name", baby_uid),
+                    latest_event=LatestEvent(
+                        key=latest_event["key"], time=latest_event["time"]
+                    ),
+                    device_info=device_info,
+                )
+                baby_metas[baby_meta.baby_uid] = baby_meta
+
+            return NanitData(babies=baby_metas)
+
+        # TODO: poll /focus/cameras/{camera_uid}/connection_status for camera connection status
 
     def get_stream_url(self, baby_uid: str) -> str:
         _LOGGER.info(

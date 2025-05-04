@@ -17,7 +17,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import NanitCoordinator
+from . import NanitCoordinator, BabyMeta
 from .const import COORDINATOR, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,8 +43,8 @@ async def async_setup_entry(
 
     async_add_entities(
         [
-            NanitLatestEventSensor(coordinator, baby_uid, latest_event)
-            for baby_uid, latest_event in coordinator.latest_events.items()
+            NanitLatestEventSensor(coordinator, baby_meta)
+            for baby_meta in coordinator.data.babies.values()
         ]
     )
 
@@ -65,30 +65,27 @@ class NanitLatestEventSensor(CoordinatorEntity[NanitCoordinator], SensorEntity):
 
     entity_description = LATEST_EVENT_SENSOR_DESCRIPTION
 
-    def __init__(self, coordinator: NanitCoordinator, baby_uid: str, latest_event: dict) -> None:
+    def __init__(
+        self, coordinator: NanitCoordinator, baby_meta: BabyMeta
+    ) -> None:
         """Initialize Nanit latest event sensor."""
         super().__init__(coordinator)
 
         _LOGGER.info(
             "Setting up nanit latest event sensor for baby_uid: %s with data: %s",
-            baby_uid,
-            latest_event,
+            baby_meta.baby_uid,
+            baby_meta.latest_event,
         )
 
-        self._baby_uid = baby_uid
-        self._attr_unique_id = f"nanit_{baby_uid}"
-        self._attr_native_value = latest_event.get("key")
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, baby_uid)},
-            name=f"Nanit {baby_uid}",  # TODO: Use baby name instead
-            manufacturer="Nanit",
-        )
+        self._baby_uid = baby_meta.baby_uid
+        self._attr_unique_id = f"{baby_meta.baby_uid}_latest_event"
+        self._attr_native_value = baby_meta.latest_event.key
+        self._attr_device_info = baby_meta.device_info
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _LOGGER.info("Handling updated data for latest event sensor")
-        for baby_uid, latest_event in self.coordinator.latest_events.items():
-            if baby_uid == self._baby_uid:
-                self._attr_native_value = latest_event.get("key")
-                self.async_write_ha_state()
+        _LOGGER.info("Handling updated data for latest event sensor for baby_uid: %s", self._baby_uid)
+        if self._baby_uid in self.coordinator.data.babies:
+            self._attr_native_value = self.coordinator.data.babies[self._baby_uid].latest_event.key
+            self.async_write_ha_state()

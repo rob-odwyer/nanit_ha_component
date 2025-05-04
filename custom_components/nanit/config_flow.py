@@ -88,6 +88,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                     },
                 )
 
+        # TODO: Show an explanation here
         return self.async_show_form(
             step_id="mfa", data_schema=STEP_LOGIN_DATA_SCHEMA, errors=errors
         )
