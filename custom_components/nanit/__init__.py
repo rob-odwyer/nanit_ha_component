@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
-import time
 from dataclasses import dataclass
 
 import async_timeout
-import pynanit
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -17,11 +15,10 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
     DataUpdateCoordinator,
-    UpdateFailed,
 )
 
+from .nanit_client import NanitClient, NanitAPIError, NanitUnauthorizedError
 from .const import ACCESS_TOKEN, CLIENT, COORDINATOR, DOMAIN, REFRESH_TOKEN
 
 PLATFORMS: list[Platform] = [Platform.CAMERA, Platform.SENSOR]
@@ -37,7 +34,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN].setdefault(entry.entry_id, {})
 
     # Create API client and store it in the entry data
-    client = pynanit.NanitClient(
+    client = NanitClient(
         async_get_clientsession(hass),
         access_token=entry.data[ACCESS_TOKEN],
         refresh_token=entry.data[REFRESH_TOKEN],
@@ -95,7 +92,7 @@ class NanitData:
 class NanitCoordinator(DataUpdateCoordinator[NanitData]):
     """Data update coordinator for refreshing data from the Nanit REST API."""
 
-    def __init__(self, hass: HomeAssistant, client: pynanit.NanitClient) -> None:
+    def __init__(self, hass: HomeAssistant, client: NanitClient) -> None:
         """Initialize my coordinator."""
         super().__init__(
             hass,
@@ -130,14 +127,16 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
             try:
                 return await self._update_babies()
             # FIXME:
-            # except pynanit.NanitUnauthorizedError:
-            except pynanit.NanitAPIError:
+            # except NanitUnauthorizedError:
+            except NanitAPIError:
                 _LOGGER.warning(
                     "Got HTTP 401 Unauthorized from Nanit API, attempting to refresh token"
                 )
                 # Fetch a new access token using the refresh token
                 # This should mean that the credentials never expire, as long as HA is running this regularly
                 await self._client.refresh_session()
+
+                # TODO: We need to store the refreshed credentials so that the entry can be reloaded!
                 _LOGGER.info(
                     "Successfully refreshed Nanit API token, retrying update",
                 )
@@ -145,7 +144,7 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
 
         # Note: asyncio.TimeoutError and aiohttp.ClientError are already
         # handled by the data update coordinator.
-        except pynanit.NanitAPIError as err:
+        except NanitAPIError as err:
             # Raising ConfigEntryAuthFailed will cancel future updates
             # and start a config flow with SOURCE_REAUTH (async_step_reauth)
             raise ConfigEntryAuthFailed from err
@@ -157,6 +156,7 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
 
         # FIXME: remove
         _LOGGER.info("Nanit access token: %s", self._client._access_token)
+        _LOGGER.info("Nanit refresh token: %s", self._client._refresh_token)
 
         async with async_timeout.timeout(10):
 
@@ -168,11 +168,11 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
 
                 latest_event = await self._client.get_latest_event(baby_uid)
 
-                camera_info = baby['camera']
+                camera_info = baby["camera"]
                 camera = Camera(
                     camera_info["uid"],
-                    camera_info.get("hardware", 'Unknown hardware'),
-                    camera_info.get("mode", 'Unknown mode'),
+                    camera_info.get("hardware", "Unknown hardware"),
+                    camera_info.get("mode", "Unknown mode"),
                 )
 
                 device_info = DeviceInfo(
@@ -181,8 +181,8 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
                     name=baby.get("name", baby_uid),
                     model=camera.hardware,
                     serial_number=camera.camera_uid,
-                    hw_version=camera_info.get('hardware'),
-                    sw_version=camera_info.get('version'),
+                    hw_version=camera_info.get("hardware"),
+                    sw_version=camera_info.get("version"),
                 )
 
                 baby_meta = BabyMeta(
@@ -190,7 +190,7 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
                     camera=camera,
                     name=baby.get("name", baby_uid),
                     latest_event=LatestEvent(
-                        key=latest_event["key"], time=latest_event["time"]
+                        key=latest_event.get("key", "UNKNOWN"), time=latest_event.get("time", 0)
                     ),
                     device_info=device_info,
                 )

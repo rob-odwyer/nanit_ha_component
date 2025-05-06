@@ -3,9 +3,7 @@
   "name": "Nanit",
   "codeowners": ["@rob-odwyer"],
   "config_flow": true,
-  "requirements": [
-    "git+https://github.com/rob-odwyer/pynanit@main#egg=pynanit"
-  ],
+  "requirements": [],
   "documentation": "https://github.com/rob-odwyer/pynanit",
   "issue_tracker": "https://github.com/rob-odwyer/pynanit",
   "iot_class": "cloud_polling",
