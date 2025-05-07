@@ -97,6 +97,8 @@ class NanitClient:
             },
             **kwargs,
         ) as resp:
+            if resp.status == 401:
+                raise NanitUnauthorizedError()
             if resp.status >= 400:
                 raise NanitAPIError(f"Bad status code from nanit API: {resp.status}")
             data = await resp.json()

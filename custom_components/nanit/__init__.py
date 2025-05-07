@@ -42,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id][CLIENT] = client
 
     # Create the coordinator for refreshing from the API and store in the entry data
-    coordinator = NanitCoordinator(hass, client)
+    coordinator = NanitCoordinator(hass, entry, client)
     hass.data[DOMAIN][entry.entry_id][COORDINATOR] = coordinator
 
     await coordinator.async_config_entry_first_refresh()
@@ -92,7 +92,7 @@ class NanitData:
 class NanitCoordinator(DataUpdateCoordinator[NanitData]):
     """Data update coordinator for refreshing data from the Nanit REST API."""
 
-    def __init__(self, hass: HomeAssistant, client: NanitClient) -> None:
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, client: NanitClient) -> None:
         """Initialize my coordinator."""
         super().__init__(
             hass,
@@ -106,6 +106,7 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
             # being dispatched to listeners
             always_update=True,
         )
+        self._config_entry = config_entry
         self._client = client
 
     async def _async_setup(self):
@@ -126,17 +127,23 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
         try:
             try:
                 return await self._update_babies()
-            # FIXME:
-            # except NanitUnauthorizedError:
-            except NanitAPIError:
+            except NanitUnauthorizedError:
                 _LOGGER.warning(
                     "Got HTTP 401 Unauthorized from Nanit API, attempting to refresh token"
                 )
                 # Fetch a new access token using the refresh token
                 # This should mean that the credentials never expire, as long as HA is running this regularly
-                await self._client.refresh_session()
+                access_token, refresh_token = await self._client.refresh_session()
 
-                # TODO: We need to store the refreshed credentials so that the entry can be reloaded!
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={
+                        **self._config_entry.data,
+                        ACCESS_TOKEN: access_token,
+                        REFRESH_TOKEN: refresh_token,
+                    },
+                )
+
                 _LOGGER.info(
                     "Successfully refreshed Nanit API token, retrying update",
                 )
@@ -159,7 +166,6 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
         _LOGGER.info("Nanit refresh token: %s", self._client._refresh_token)
 
         async with async_timeout.timeout(10):
-
             babies = await self._client.get_babies()
 
             baby_metas = {}
