@@ -85,7 +85,7 @@ class NanitClient:
             return self._access_token, self._refresh_token
 
     def get_stream_url(self, baby_uid: str) -> str:
-        return f"rtmps://media-secured.nanit.com/nanit/{baby_uid}.{self._access_token}"
+        return f"rtmps://media-secured.nanit.com/nanit/{baby_uid}.{quote(self._access_token)}"
 
     def get_websocket_url(self, camera_uid: str) -> str:
         return f"wss://api.nanit.com/focus/cameras/{camera_uid}/user_connect"
