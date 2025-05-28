@@ -1,4 +1,5 @@
 import aiohttp
+from urllib.parse import quote
 
 API_ROOT = "https://api.nanit.com"
 
