@@ -10,10 +10,10 @@ import async_timeout
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
 )
@@ -149,12 +149,14 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
                 )
                 return await self._update_babies()
 
-        # Note: asyncio.TimeoutError and aiohttp.ClientError are already
-        # handled by the data update coordinator.
-        except NanitAPIError as err:
+        except NanitUnauthorizedError as err:
             # Raising ConfigEntryAuthFailed will cancel future updates
             # and start a config flow with SOURCE_REAUTH (async_step_reauth)
             raise ConfigEntryAuthFailed from err
+        except NanitAPIError as err:
+            # Note: asyncio.TimeoutError and aiohttp.ClientError are already
+            # handled by the data update coordinator.
+            _LOGGER.warning("Error fetching data from Nanit API: %s", err)
 
     async def _update_babies(self) -> NanitData:
         _LOGGER.info(
