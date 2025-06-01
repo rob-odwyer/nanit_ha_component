@@ -7,7 +7,6 @@ import logging
 from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -27,7 +26,9 @@ async def async_setup_entry(
     _LOGGER.info("Setting up Nanit cameras")
     coordinator: NanitCoordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR]
 
-    async_add_entities([NanitCamera(coordinator, baby) for baby in coordinator.data.babies.values()])
+    async_add_entities(
+        [NanitCamera(coordinator, baby) for baby in coordinator.data.babies.values()]
+    )
 
 
 class NanitCamera(CoordinatorEntity[NanitCoordinator], Camera):
@@ -63,6 +64,8 @@ class NanitCamera(CoordinatorEntity[NanitCoordinator], Camera):
             _LOGGER.info("Found data for camera with baby_uid: %s", self._baby_uid)
             # We don't actually have anything to update here yet - the stream source URL requires only baby UID + current auth token
 
-    async def stream_source(self) -> str | None:
+    async def stream_source(self) -> str:
         """Return the source of the stream."""
-        return self._coordinator.get_stream_url(self._baby_uid)
+        url = self._coordinator.get_stream_url(self._baby_uid)
+        _LOGGER.info("Got stream URL: %s", url)
+        return url

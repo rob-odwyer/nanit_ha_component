@@ -135,6 +135,13 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
                 # This should mean that the credentials never expire, as long as HA is running this regularly
                 access_token, refresh_token = await self._client.refresh_session()
 
+                # FIXME: remove
+                _LOGGER.info(
+                    "New Nanit API tokens: access_token=%s, refresh_token=%s",
+                    access_token,
+                    refresh_token,
+                )
+
                 self.hass.config_entries.async_update_entry(
                     self._config_entry,
                     data={
