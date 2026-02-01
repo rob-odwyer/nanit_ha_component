@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import pynanit
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
@@ -13,6 +12,7 @@ from homeassistant.const import CONF_CODE, CONF_EMAIL, CONF_PASSWORD, CONF_TOKEN
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN, ACCESS_TOKEN, REFRESH_TOKEN
+from .pynanit_lib import NanitClient, NanitAPIError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ STEP_MFA_DATA_SCHEMA = vol.Schema(
 )
 
 
-class ConfigFlow(ConfigFlow, domain=DOMAIN):
+class NanitConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Nanit."""
 
     VERSION = 1
@@ -52,7 +52,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         email = user_input[CONF_EMAIL]
         password = user_input[CONF_PASSWORD]
 
-        mfa_token, errors = self._start_login(email, password)
+        mfa_token, errors = await self._start_login(email, password)
         if mfa_token is None:
             return self.async_show_form(
                 step_id="user", data_schema=STEP_LOGIN_DATA_SCHEMA, errors=errors
@@ -114,7 +114,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         email = reauth_entry.data[CONF_EMAIL]
         password = user_input[CONF_PASSWORD]
 
-        mfa_token, errors = self._start_login(email, password)
+        mfa_token, errors = await self._start_login(email, password)
         if mfa_token is None:
             return self.async_show_form(
                 step_id="reauth_confirm",
@@ -164,10 +164,10 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _start_login(self, email: str, password: str) -> tuple[str | None, dict[str, str]]:
         errors: dict[str, str] = {}
         try:
-            client = pynanit.NanitClient(async_get_clientsession(self.hass))
+            client = NanitClient(async_get_clientsession(self.hass))
             mfa_token = await client.initiate_login(email=email, password=password)
             return mfa_token, errors
-        except pynanit.NanitAPIError:
+        except NanitAPIError:
             errors["base"] = "invalid_auth"
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception while logging in")
@@ -179,7 +179,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> tuple[str | None, str | None, dict[str, str]]:
         errors: dict[str, str] = {}
         try:
-            client = pynanit.NanitClient(async_get_clientsession(self.hass))
+            client = NanitClient(async_get_clientsession(self.hass))
 
             # TODO: retrieve user.id here and call async_set_unique_id
             access_token, refresh_token = await client.complete_login(
@@ -189,7 +189,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                 mfa_code=mfa_code,
             )
             return access_token, refresh_token, errors
-        except pynanit.NanitAPIError:
+        except NanitAPIError:
             errors["base"] = "invalid_auth"
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception while logging in")

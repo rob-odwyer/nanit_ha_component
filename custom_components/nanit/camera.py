@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import cached_property
 import logging
 
 from homeassistant.components.camera import Camera, CameraEntityFeature
@@ -35,7 +36,6 @@ class NanitCamera(CoordinatorEntity[NanitCoordinator], Camera):
     """Implementation of a Nanit camera."""
 
     _attr_supported_features = CameraEntityFeature.STREAM
-    use_stream_for_stills = True
     _attr_brand = "Nanit"
     _attr_is_streaming = True
 
@@ -69,3 +69,8 @@ class NanitCamera(CoordinatorEntity[NanitCoordinator], Camera):
         url = self._coordinator.get_stream_url(self._baby_uid)
         _LOGGER.info("Got stream URL: %s", url)
         return url
+
+    @cached_property
+    def use_stream_for_stills(self) -> bool:
+        """Always use the RTSP stream to generate snapshots."""
+        return True
