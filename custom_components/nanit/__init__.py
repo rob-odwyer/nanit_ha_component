@@ -164,6 +164,7 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
             # handled by the data update coordinator.
             _LOGGER.warning("Error fetching data from Nanit API: %s", err)
+            raise err
 
     async def _update_babies(self) -> NanitData:
         _LOGGER.info(
