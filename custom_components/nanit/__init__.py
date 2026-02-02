@@ -175,7 +175,7 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
         _LOGGER.info("Nanit access token: %s", self._client._access_token)
         _LOGGER.info("Nanit refresh token: %s", self._client._refresh_token)
 
-        async with async_timeout.timeout(10):
+        async with async_timeout.timeout(30):
             babies = await self._client.get_babies()
 
             baby_metas = {}
