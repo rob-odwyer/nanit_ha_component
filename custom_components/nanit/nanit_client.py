@@ -128,3 +128,8 @@ class NanitClient:
         return await self._get_authorized(
             f"/babies/{baby_uid}/events/last",
         )
+
+    async def get_connection_status(self, camera_uid: str) -> dict:
+        return await self._get_authorized(
+            f"/focus/cameras/{camera_uid}/connection_status",
+        )

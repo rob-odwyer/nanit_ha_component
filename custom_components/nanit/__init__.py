@@ -74,11 +74,18 @@ class LatestEvent:
 
 
 @dataclass
+class ConnectionStatus:
+    connected: bool
+    last_seen: int
+
+
+@dataclass
 class BabyMeta:
     baby_uid: str
     camera: Camera
     name: str
     latest_event: LatestEvent
+    connection_status: ConnectionStatus
     device_info: DeviceInfo
 
 
@@ -185,8 +192,11 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
                 latest_event = await self._client.get_latest_event(baby_uid)
 
                 camera_info = baby["camera"]
+                camera_uid = camera_info["uid"]
+                connection_status_response = await self._client.get_connection_status(camera_uid)
+
                 camera = Camera(
-                    camera_info["uid"],
+                    camera_uid,
                     camera_info.get("hardware", "Unknown hardware"),
                     camera_info.get("mode", "Unknown mode"),
                 )
@@ -196,7 +206,7 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
                     manufacturer="Nanit",
                     name=baby.get("name", baby_uid),
                     model=camera.hardware,
-                    serial_number=camera.camera_uid,
+                    serial_number=camera_uid,
                     hw_version=camera_info.get("hardware"),
                     sw_version=camera_info.get("version"),
                 )
@@ -208,13 +218,15 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
                     latest_event=LatestEvent(
                         key=latest_event.get("key", "UNKNOWN"), time=latest_event.get("time", 0)
                     ),
+                    connection_status=ConnectionStatus(
+                        connected=connection_status_response.get("connected", False),
+                        last_seen=connection_status_response.get("last_seen", 0),
+                    ),
                     device_info=device_info,
                 )
                 baby_metas[baby_meta.baby_uid] = baby_meta
 
             return NanitData(babies=baby_metas)
-
-        # TODO: poll /focus/cameras/{camera_uid}/connection_status for camera connection status
 
     def get_stream_url(self, baby_uid: str) -> str:
         _LOGGER.info(
