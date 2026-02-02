@@ -12,7 +12,7 @@ from homeassistant.const import CONF_CODE, CONF_EMAIL, CONF_PASSWORD, CONF_TOKEN
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN, ACCESS_TOKEN, REFRESH_TOKEN
-from .pynanit_lib import NanitClient, NanitAPIError
+from .nanit_client import NanitClient, NanitAPIError
 
 _LOGGER = logging.getLogger(__name__)
 
