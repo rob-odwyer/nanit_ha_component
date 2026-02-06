@@ -38,15 +38,6 @@ CONNECTION_STATUS_SENSOR_DESCRIPTION = SensorEntityDescription(
     entity_category=EntityCategory.DIAGNOSTIC,
 )
 
-LAST_SEEN_SENSOR_DESCRIPTION = SensorEntityDescription(
-    key="last_seen",
-    device_class=SensorDeviceClass.TIMESTAMP,
-    has_entity_name=True,
-    name="Last Seen",
-    state_class=None,
-    entity_category=EntityCategory.DIAGNOSTIC,
-)
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -62,7 +53,6 @@ async def async_setup_entry(
     for baby_meta in coordinator.data.babies.values():
         entities.append(NanitLatestEventSensor(coordinator, baby_meta))
         entities.append(NanitConnectionStatusSensor(coordinator, baby_meta))
-        entities.append(NanitLastSeenSensor(coordinator, baby_meta))
 
     async_add_entities(entities)
 
@@ -137,35 +127,4 @@ class NanitConnectionStatusSensor(CoordinatorEntity[NanitCoordinator], SensorEnt
         if self._baby_uid in self.coordinator.data.babies:
             connected = self.coordinator.data.babies[self._baby_uid].connection_status.connected
             self._attr_native_value = "online" if connected else "offline"
-            self.async_write_ha_state()
-
-
-class NanitLastSeenSensor(CoordinatorEntity[NanitCoordinator], SensorEntity):
-    """Sensor for displaying when camera was last seen online."""
-
-    entity_description = LAST_SEEN_SENSOR_DESCRIPTION
-
-    def __init__(self, coordinator: NanitCoordinator, baby_meta: BabyMeta) -> None:
-        """Initialize Nanit last seen sensor."""
-        super().__init__(coordinator)
-
-        _LOGGER.info(
-            "Setting up nanit last seen sensor for baby_uid: %s",
-            baby_meta.baby_uid,
-        )
-
-        self._baby_uid = baby_meta.baby_uid
-        self._attr_unique_id = f"{baby_meta.baby_uid}_last_seen"
-        self._attr_native_value = datetime.fromtimestamp(
-            baby_meta.connection_status.last_seen, tz=timezone.utc
-        )
-        self._attr_device_info = baby_meta.device_info
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        _LOGGER.info("Handling updated data for last seen sensor for baby_uid: %s", self._baby_uid)
-        if self._baby_uid in self.coordinator.data.babies:
-            last_seen = self.coordinator.data.babies[self._baby_uid].connection_status.last_seen
-            self._attr_native_value = datetime.fromtimestamp(last_seen, tz=timezone.utc)
             self.async_write_ha_state()

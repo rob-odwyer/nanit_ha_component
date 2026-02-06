@@ -76,7 +76,6 @@ class LatestEvent:
 @dataclass
 class ConnectionStatus:
     connected: bool
-    last_seen: int
 
 
 @dataclass
@@ -220,7 +219,6 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
                     ),
                     connection_status=ConnectionStatus(
                         connected=connection_status_response.get("connected", False),
-                        last_seen=connection_status_response.get("last_seen", 0),
                     ),
                     device_info=device_info,
                 )
