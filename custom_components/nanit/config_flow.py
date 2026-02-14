@@ -25,6 +25,7 @@ STEP_LOGIN_DATA_SCHEMA = vol.Schema(
 
 STEP_REAUTH_DATA_SCHEMA = vol.Schema(
     {
+        vol.Required(CONF_EMAIL): str,
         vol.Required(CONF_PASSWORD): str,
     }
 )
@@ -123,21 +124,20 @@ class NanitConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         self.data = {
-            CONF_EMAIL: user_input[CONF_EMAIL],
-            CONF_PASSWORD: user_input[CONF_PASSWORD],
+            CONF_EMAIL: email,
+            CONF_PASSWORD: password,
             CONF_TOKEN: mfa_token,
         }
-        return self.async_show_form(step_id="mfa", data_schema=STEP_MFA_DATA_SCHEMA)
+        return self.async_show_form(step_id="reauth_mfa", data_schema=STEP_MFA_DATA_SCHEMA)
 
     async def async_step_reauth_mfa(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the MFA code step."""
+        """Handle the MFA code step during reauth."""
         errors: dict[str, str] = {}
         if user_input is None:
-            # TODO: Show an explanation here
             return self.async_show_form(
-                step_id="mfa", data_schema=STEP_MFA_DATA_SCHEMA, errors=errors
+                step_id="reauth_mfa", data_schema=STEP_MFA_DATA_SCHEMA, errors=errors
             )
 
         access_token, refresh_token, errors = await self._complete_login(
@@ -149,7 +149,7 @@ class NanitConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if access_token is None:
             return self.async_show_form(
-                step_id="mfa", data_schema=STEP_MFA_DATA_SCHEMA, errors=errors
+                step_id="reauth_mfa", data_schema=STEP_MFA_DATA_SCHEMA, errors=errors
             )
 
         return self.async_update_reload_and_abort(

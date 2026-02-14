@@ -78,6 +78,8 @@ class NanitClient:
             },
         ) as resp:
             login_data = await resp.json()
+            if resp.status in (404, 401, 403):
+                raise NanitUnauthorizedError()
             if resp.status != 200:
                 raise NanitAPIError(f"Bad status code from nanit API: {resp.status}: {login_data}")
             self._access_token = login_data["access_token"]
