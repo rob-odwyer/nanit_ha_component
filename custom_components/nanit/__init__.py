@@ -86,6 +86,7 @@ class BabyMeta:
     latest_event: LatestEvent
     connection_status: ConnectionStatus
     device_info: DeviceInfo
+    thumbnail_url: str | None = None
 
 
 @dataclass
@@ -210,17 +211,40 @@ class NanitCoordinator(DataUpdateCoordinator[NanitData]):
                     sw_version=camera_info.get("version"),
                 )
 
+                # Fetch thumbnail from stats/latest, but only when the latest event has changed
+                thumbnail_url = None
+                current_event_time = latest_event.get("time", 0)
+                previous_baby = self.data.babies.get(baby_uid) if self.data else None
+                previous_event_time = previous_baby.latest_event.time if previous_baby else None
+
+                if previous_event_time != current_event_time:
+                    _LOGGER.info(
+                        "Latest event changed for baby %s, fetching new thumbnail", baby_uid
+                    )
+                    try:
+                        stats = await self._client.get_stats_latest(baby_uid)
+                        latest_stats = stats.get("latest", {})
+                        media_urls = latest_stats.get("media_urls", {})
+                        thumbnail_url = media_urls.get("thumbnail")
+                        _LOGGER.info(f"Thumbnail URL set to {thumbnail_url}")
+                    except NanitAPIError:
+                        _LOGGER.warning("Failed to fetch stats/latest for baby %s", baby_uid)
+                else:
+                    # Keep the previous thumbnail URL
+                    thumbnail_url = previous_baby.thumbnail_url if previous_baby else None
+
                 baby_meta = BabyMeta(
                     baby_uid=baby_uid,
                     camera=camera,
                     name=baby.get("name", baby_uid),
                     latest_event=LatestEvent(
-                        key=latest_event.get("key", "UNKNOWN"), time=latest_event.get("time", 0)
+                        key=latest_event.get("key", "UNKNOWN"), time=current_event_time
                     ),
                     connection_status=ConnectionStatus(
                         connected=connection_status_response.get("connected", False),
                     ),
                     device_info=device_info,
+                    thumbnail_url=thumbnail_url,
                 )
                 baby_metas[baby_meta.baby_uid] = baby_meta
 

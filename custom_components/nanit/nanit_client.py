@@ -135,3 +135,15 @@ class NanitClient:
         return await self._get_authorized(
             f"/focus/cameras/{camera_uid}/connection_status",
         )
+
+    async def get_stats_latest(self, baby_uid: str) -> dict:
+        return await self._get_authorized(
+            f"/babies/{baby_uid}/stats/latest",
+        )
+
+    async def get_thumbnail(self, url: str) -> bytes:
+        """Fetch a thumbnail image from the given URL."""
+        async with self._session.get(url) as resp:
+            if resp.status >= 400:
+                raise NanitAPIError(f"Failed to fetch thumbnail: {resp.status}")
+            return await resp.read()
